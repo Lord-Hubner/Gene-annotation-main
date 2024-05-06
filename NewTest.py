@@ -5,7 +5,7 @@ Entrez.email = "dezinho_dh@hotmail.com"
 
 def search_16s_sequence(query):
     try:
-        handle = Entrez.esearch(db="nucleotide", term=query)
+        handle = Entrez.esearch(db="nucleotide", term=query, retmax=500)
         record = Entrez.read(handle)
         handle.close()
         return record["IdList"]
@@ -24,7 +24,7 @@ def fetch_sequence_by_id(id):
         return None
 
 # Example: Search query for a specific organism name
-organism_name = "rrna"
+organism_name = "16S rrnA[Title] AND Escherichia coli[Orgn]"
 
 # Search for 16S rRNA sequences
 search_result_ids = search_16s_sequence(organism_name)

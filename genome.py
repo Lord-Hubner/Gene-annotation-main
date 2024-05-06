@@ -1,40 +1,60 @@
 import math
 from Bio import Entrez 
+from numba import njit
+from numba.experimental import jitclass
+from numba import int32, string, boolean
+import time
 
 BOX10 =  [['T', 0.8], ['A', 0.95], ['T', 0.45], ['A', 0.60], ['A', 0.50], ['T', 0.96]]
 BOX35 =  [['T', 0.82], ['T', 0.84], ['G', 0.78], ['A', 0.65], ['C', 0.54], ['A', 0.45]]
 
 REVERSE_DICT = {'A':'T', 'T':'A', 'G':'C', 'C':'G'}
 
+AMINOACIDS = ["Ala", "Arg", "Asn", "Asp", "Cys", "Glu", "Gln", "Gly", "Hys", "Ile", "Leu", "Lys", "Met", "Phe", "Pro", "Ser", "Thr", "Trp", "Tyr", "Val"]
 
+spec = [
+    ('sequence', string),
+    ('minimumProbability', int32),
+    ('minimumSize', int32),
+    ('includeRNAGenes', boolean)
 
+]
 
+@jitclass
 class Genome:
+    @njit
     def __init__(self, arch : str, minProb = 0, minSize = 3 , includeRNAGenes = False, searchString = "") -> None:
+        '''
+        Inicializa um genoma tendo como o alvo apontado por arch e busca por genes com o produto das probabildades dos promotores de pelo menos minProb
+        e sequência de pelo menos minSize. Se includeRNAGenes for igual a true, busca também por genes de rRNA e tRNA no genoma tendo como base as sequências 
+        do organismo específicado em searchString. Caso este último não seja específicado, a busca será em Escherichia coli.
+        '''
         self.sequence = self.GetSequence(arch)
         self.minimumProbability = minProb
         self.minimumSize = minSize
         self.includeRNAGenes = includeRNAGenes
         if includeRNAGenes:
             self.searchString = searchString
-            self.sixteenSRNA = self.SearchSequence("16S")
-            self.fiveSRNA = self.SearchSequence("5S")
-            self.twentythreeSRNA = self.SearchSequence("23S")
+            self.sixteenSRNA = self.GetrRNATemplate("16S")
+            self.fiveSRNA = self.GetrRNATemplate("5S")
+            self.twentythreeSRNA = self.GetrRNATemplate("23S")
+            self.tRNAs = self.GettRNAsTemplates()
 
-    def SearchSequence(self, RNAtype : str):
-        queryString = self.searchString if self.searchString != "" else "E. coli"
+    @njit
+    def GetrRNATemplate(self, RNAtype : str):
+        queryString = self.searchString if self.searchString != "" else "Escherichia coli"
         match RNAtype:
             case "16S":
-                queryString=queryString+" 16S rRNA"
+                queryString=f"16S rRNA[Title] AND {queryString}[Orgn]"
             case "5S":
-                queryString=queryString+" 5S rRNA"
+                queryString=f"5S rRNA[Title] AND {queryString}[Orgn]"
             case "23S":
-                queryString=queryString+" 23S rRNA"
+                queryString=f"23S rRNA[Title] AND {queryString}[Orgn]"
         self.queryString = queryString
 
         Entrez.email = "dezinho_dh@hotmail.com"
         try:
-            handle = Entrez.esearch(db="nucleotide", term=queryString)
+            handle = Entrez.esearch(db="nucleotide", term=queryString, retmax=1)
             record = Entrez.read(handle)
             handle.close()
         
@@ -42,22 +62,117 @@ class Genome:
             record = handle.read()
             handle.close()
 
-
+            record = record[record.find('\n'):].replace("\n", "")
             return record
         except Exception as e:
-            print("Erro ao buscar pelos rRNAs da sequência, mensagem de erro:", e)
+            print("Erro ao buscar pelos rRNAs do organismo selecionado, tente com outro ou inicialize sem searchString para buscar em Escherichia coli.\nMensagem de erro:", e)
             return None
         
+    @njit
+    def GettRNAsTemplates(self) -> dict:
+        Entrez.email = "dezinho_dh@hotmail.com"
+        queryString = self.searchString if self.searchString != "" else "Escherichia coli"
+        dicttRNAs = {}
 
-    # GettRNAS(self, sequence : str):
+        for aminoacid in AMINOACIDS:
+            records = self.EntrezSearchtRNA(aminoacid, queryString)
 
+            try:
+                for result in records[1:]:
+                    result = result[result.find('\n'):].replace("\n", "")
+                    if  (100 > len(result) > 65 ):                   
+                        dicttRNAs[aminoacid] = result
+                        break
+            except Exception as e:
+                print("Erro ao buscar pelos tRNAs do organismo selecionado, tente com outro ou inicialize sem searchString para buscar em Escherichia coli.\nMensagem de erro:", e)
+                return None
+            
+        return dicttRNAs
 
+    @njit
+    def EntrezSearchtRNA(self, aminoacid, queryString) -> str:
+        try:
+            handle = Entrez.esearch(db="nucleotide", term="tRNA-"+aminoacid+f"[Title] AND {queryString}[Orgn]", retmax=20)
+            records = Entrez.read(handle)
+            handle.close()
 
+            handle = Entrez.efetch(db="nucleotide", id=records["IdList"], rettype="fasta")
+            records = handle.read().split('>')
+            handle.close()
 
+            return records
+        except Exception as e:
+            print("Erro ao buscar pelos tRNAs do organismo selecionado, tente com outro ou inicialize sem searchString para buscar em Escherichia coli.\nMensagem de erro:", e)
 
+    @njit
+    def SearchRNAGenes(self):
+        sixteenrRNA, fiverRNA, twentythreeRNA = self.SearchrRNAGenes()
+
+        tRNAs = self.SearchtRNAGenes()
+
+        return [sixteenrRNA, fiverRNA, twentythreeRNA, tRNAs]
     
+    @njit
+    def SearchtRNAGenes(self):
+        dicttRNAs = dict
 
+        for aminoacid in AMINOACIDS:
+            dicttRNAs[aminoacid] = self.GetFivetRNAGenes(aminoacid)
 
+    @njit
+    def GetFivetRNAGenes(self, aminoacid : str):
+        sequence = self.sequence
+        thisAminoacidTemplate = self.tRNAs[aminoacid][:3]
+
+        genes = list()
+
+        score = 0
+        i = 0
+        n = 0
+        while i < 5:
+            start = sequence.find(thisAminoacidTemplate, n) 
+
+            for char in range(start, start+len(thisAminoacidTemplate)):
+                if char == thisAminoacidTemplate[i]:
+                    score = score + 1
+           
+            score = score/len(thisAminoacidTemplate)
+            genes.append([start, char, score])
+            n = char
+            i = i + 1
+
+        return genes
+
+    @njit
+    def GetSRNAGenes(self, sequence, currentTargetTemplate):
+        genes = list()
+        n=0
+        while True:
+            gene = self.GetrRNAGene(sequence, n, currentTargetTemplate)
+            if isinstance(gene, str):
+                break
+            n = gene[1]
+            if gene[2] >= 0.75:
+                genes.append(gene)
+
+        return genes
+
+    @njit
+    def GetrRNAGene(self, sequence : str, number : int, targetTemplate : str):
+
+        start = sequence.find(targetTemplate[:3], number)
+        end = start+len(targetTemplate)
+        score = 0
+        i=0
+
+        for n in range(start, end):
+            if sequence[n] == targetTemplate[i]:
+                score = score + 1
+            i = i + 1
+        score = score/len(targetTemplate)
+        return [start, n, score]
+
+    @njit
     def GetSequence(self, arch):
         arch = open(arch)
         arch.readline()
@@ -66,7 +181,7 @@ class Genome:
             sequence += line.strip()
         return sequence
 
-
+    @njit
     def GetGene(self, sequence: str, number : int):
 
         startIndex = sequence.find("ATG", number)
@@ -83,15 +198,8 @@ class Genome:
                 return [startIndex, stopIndex]
 
         return f"Nenhum possível gene a partir do nucleotídeo na posição {number}"
-    
-    # def GetRNAGenes(self, sequence: str):
-    #     16sRNA
-    
-    # def Get16SRNAGene(self, ):
-        
 
-        
-
+    @njit
     def GetPontuation(self, boxSequence : str, boxProbs : list):
         points = 1
         i = 0
@@ -101,6 +209,7 @@ class Genome:
 
         return points**(1/6)
 
+    @njit
     def GetBestBoxes(self, sequence : str, startCodonIndex : int):
         potential10Boxes = list()
         potential35Boxes = list()
@@ -128,6 +237,7 @@ class Genome:
         print(returnString)
         return [best10Box[2], best35Box[2], returnString]
 
+    @njit
     def AnnotateGenome(self):
         
         '''
@@ -150,9 +260,11 @@ class Genome:
         genes.sort(key= lambda gene: gene[2], reverse=True)
 
         if(self.includeRNAGenes):
-            self.GetRNAGenes(sequence)
-        return genes
+            sixteenSRNA, fiveSRNA, twentythreeSRNA, tRNAs = self.SearchRNAGenes()
+            
+        return [genes, sixteenSRNA, fiveSRNA, twentythreeSRNA, tRNAs]
 
+    @njit
     def FindGenes(self, sequence : str, listGenes : list, n : int):
         while True:       
             gene = self.GetGene(sequence, n)
@@ -166,18 +278,9 @@ class Genome:
             n = gene[0]+1
         return listGenes
 
-    
-
-
-# sequence = GetSequence("phageX174.fasta")
-# result = GetStartEnd(sequence, 0)
-# print(result)
-
-# tata = 'TATAAT'
-# sequence = GetSequence("phageX174.fasta")
-# variable = GetBestBoxes(sequence, GetGene(sequence, 0)[0])
-# print(variable[2])
-
+start = time.time()
 genome = Genome("mycoplasmagenitalium.fasta", includeRNAGenes=True)
 print(genome.AnnotateGenome())
 print("bah men")
+end = time.time()
+print(start-end)
