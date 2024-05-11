@@ -3,6 +3,7 @@ from Bio import Entrez
 from numba import njit
 from numba.experimental import jitclass
 from numba import int32, string, boolean
+import Templates
 import time
 
 BOX10 =  [['T', 0.8], ['A', 0.95], ['T', 0.45], ['A', 0.60], ['A', 0.50], ['T', 0.96]]
@@ -12,6 +13,7 @@ REVERSE_DICT = {'A':'T', 'T':'A', 'G':'C', 'C':'G'}
 
 AMINOACIDS = ["Ala", "Arg", "Asn", "Asp", "Cys", "Glu", "Gln", "Gly", "Hys", "Ile", "Leu", "Lys", "Met", "Phe", "Pro", "Ser", "Thr", "Trp", "Tyr", "Val"]
 
+
 spec = [
     ('sequence', string),
     ('minimumProbability', int32),
@@ -20,9 +22,9 @@ spec = [
 
 ]
 
-@jitclass
+#@jitclass
 class Genome:
-    @njit
+    #@njit
     def __init__(self, arch : str, minProb = 0, minSize = 3 , includeRNAGenes = False, searchString = "") -> None:
         '''
         Inicializa um genoma tendo como o alvo apontado por arch e busca por genes com o produto das probabildades dos promotores de pelo menos minProb
@@ -40,7 +42,7 @@ class Genome:
             self.twentythreeSRNA = self.GetrRNATemplate("23S")
             self.tRNAs = self.GettRNAsTemplates()
 
-    @njit
+    #@njit
     def GetrRNATemplate(self, RNAtype : str):
         queryString = self.searchString if self.searchString != "" else "Escherichia coli"
         match RNAtype:
@@ -68,7 +70,7 @@ class Genome:
             print("Erro ao buscar pelos rRNAs do organismo selecionado, tente com outro ou inicialize sem searchString para buscar em Escherichia coli.\nMensagem de erro:", e)
             return None
         
-    @njit
+    #@njit
     def GettRNAsTemplates(self) -> dict:
         Entrez.email = "dezinho_dh@hotmail.com"
         queryString = self.searchString if self.searchString != "" else "Escherichia coli"
@@ -89,7 +91,7 @@ class Genome:
             
         return dicttRNAs
 
-    @njit
+    #@njit
     def EntrezSearchtRNA(self, aminoacid, queryString) -> str:
         try:
             handle = Entrez.esearch(db="nucleotide", term="tRNA-"+aminoacid+f"[Title] AND {queryString}[Orgn]", retmax=20)
@@ -104,7 +106,7 @@ class Genome:
         except Exception as e:
             print("Erro ao buscar pelos tRNAs do organismo selecionado, tente com outro ou inicialize sem searchString para buscar em Escherichia coli.\nMensagem de erro:", e)
 
-    @njit
+    #@njit
     def SearchRNAGenes(self):
         sixteenrRNA, fiverRNA, twentythreeRNA = self.SearchrRNAGenes()
 
@@ -112,14 +114,14 @@ class Genome:
 
         return [sixteenrRNA, fiverRNA, twentythreeRNA, tRNAs]
     
-    @njit
+    #@njit
     def SearchtRNAGenes(self):
         dicttRNAs = dict
 
         for aminoacid in AMINOACIDS:
             dicttRNAs[aminoacid] = self.GetFivetRNAGenes(aminoacid)
 
-    @njit
+    #@njit
     def GetFivetRNAGenes(self, aminoacid : str):
         sequence = self.sequence
         thisAminoacidTemplate = self.tRNAs[aminoacid][:3]
@@ -143,7 +145,7 @@ class Genome:
 
         return genes
 
-    @njit
+    #@njit
     def GetSRNAGenes(self, sequence, currentTargetTemplate):
         genes = list()
         n=0
@@ -157,7 +159,7 @@ class Genome:
 
         return genes
 
-    @njit
+    #@njit
     def GetrRNAGene(self, sequence : str, number : int, targetTemplate : str):
 
         start = sequence.find(targetTemplate[:3], number)
@@ -172,7 +174,7 @@ class Genome:
         score = score/len(targetTemplate)
         return [start, n, score]
 
-    @njit
+    #@njit
     def GetSequence(self, arch):
         arch = open(arch)
         arch.readline()
@@ -181,7 +183,7 @@ class Genome:
             sequence += line.strip()
         return sequence
 
-    @njit
+    #@njit
     def GetGene(self, sequence: str, number : int):
 
         startIndex = sequence.find("ATG", number)
@@ -199,7 +201,7 @@ class Genome:
 
         return f"Nenhum possível gene a partir do nucleotídeo na posição {number}"
 
-    @njit
+    #@njit
     def GetPontuation(self, boxSequence : str, boxProbs : list):
         points = 1
         i = 0
@@ -209,7 +211,7 @@ class Genome:
 
         return points**(1/6)
 
-    @njit
+    #@njit
     def GetBestBoxes(self, sequence : str, startCodonIndex : int):
         potential10Boxes = list()
         potential35Boxes = list()
@@ -237,7 +239,7 @@ class Genome:
         print(returnString)
         return [best10Box[2], best35Box[2], returnString]
 
-    @njit
+    #@njit
     def AnnotateGenome(self):
         
         '''
@@ -264,7 +266,7 @@ class Genome:
             
         return [genes, sixteenSRNA, fiveSRNA, twentythreeSRNA, tRNAs]
 
-    @njit
+    #@njit
     def FindGenes(self, sequence : str, listGenes : list, n : int):
         while True:       
             gene = self.GetGene(sequence, n)
