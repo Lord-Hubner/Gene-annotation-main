@@ -1,5 +1,7 @@
 from Bio import Entrez 
+from Bio import SeqIO
 import Templates
+import multiprocessing
 import time
 
 BOX10 =  [['T', 0.8], ['A', 0.95], ['T', 0.45], ['A', 0.60], ['A', 0.50], ['T', 0.96]]
@@ -7,7 +9,7 @@ BOX35 =  [['T', 0.82], ['T', 0.84], ['G', 0.78], ['A', 0.65], ['C', 0.54], ['A',
 
 REVERSE_DICT = {'A':'T', 'T':'A', 'G':'C', 'C':'G'}
 
-AMINOACIDS = ["Ala", "Arg", "Asn", "Asp", "Cys", "Glu", "Gln", "Gly", "Hys", "Ile", "Leu", "Lys", "Met", "Phe", "Pro", "Ser", "Thr", "Trp", "Tyr", "Val"]
+AMINOACIDS = ["Ala", "Arg", "Asn", "Asp", "Cys", "Glu", "Gln", "Gly", "His", "Ile", "Leu", "Lys", "Met", "Phe", "Pro", "Ser", "Thr", "Trp", "Tyr", "Val"]
 
 
 class Genome:
@@ -42,123 +44,177 @@ class Genome:
                 self.twentyThreeSRNATemplate = Templates.twentyThreeSRNA
                 self.tRNAsTemplates = Templates.tRNAs
             else:
+                start = time.time()
+                # pool = multiprocessing.Pool(4)
+                b1 = time.time()
                 self.sixteenSRNATemplate = self.__GetrRNATemplate("16S")
+                f1 = time.time()
+                print(f"Fim 1: {f1-b1}")
+                b2 = time.time()
                 self.fiveSRNATemplate = self.__GetrRNATemplate("5S")
+                f2 = time.time()
+                print(f"Fim 1: {f2-b2}")
+                b3 = time.time()
                 self.twentyThreeSRNATemplate = self.__GetrRNATemplate("23S")
+                f3 = time.time()
+                print(f"Fim 1: {f3-b3}")
                 self.tRNAsTemplates = self.__GettRNAsTemplates()
+                end = time.time()
+                print(f"Tempo: {end-start}")
+
             self.tRNAsGenes = dict()    
             self.cutOff = rnaGenesCutoff
             self.rnaMinScore = rnaGenesMinScore
 
     def __GetrRNATemplate(self, RNAtype : str):
-        queryString = self.searchString if self.searchString.isalnum() else "Escherichia coli"
+        orgnName = self.searchString if self.searchString.replace(" ", "").isalnum() else "Escherichia coli"
+        upperLimit = 0; lowerLimit = 0
         match RNAtype:
-            case "16S":
-                queryString=f"16S rRNA[Title] AND {queryString}[Orgn]"
+            case "16S":              
+                upperLimit = 1570; lowerLimit = 1530
             case "5S":
-                queryString=f"5S rRNA[Title] AND {queryString}[Orgn]"
+                upperLimit = 128; lowerLimit = 112
             case "23S":
-                queryString=f"23S rRNA[Title] AND {queryString}[Orgn]"
-        self.queryString = queryString
+                upperLimit = 2936; lowerLimit = 2876
 
+        firstQueryString=f'''({RNAtype} rRNA[Title] AND {orgnName}[Orgn]) AND ("{lowerLimit-30}"[SLEN] : "{upperLimit+30}"[SLEN])'''
+        secondQueryString = f"""(("{orgnName}"[Organism] OR {orgnName}[All Fields]) AND gene[All Fields] AND {RNAtype}[All Fields] AND rRNA[All Fields]) AND ("{lowerLimit-30}"[SLEN] : "{upperLimit+30}"[SLEN])"""
+
+        template, firstRecords, secondRecords = self.__EntrezSearchrRNATemplate(firstQueryString, secondQueryString, upperLimit, lowerLimit)
+
+        return template if template != "sem resultados" else self.__SearchWithHigherLimits(firstRecords, secondRecords, upperLimit+30, lowerLimit-30)
+           
+    def __EntrezSearchrRNATemplate(self, firstQueryString : str, secondQueryString : str, upperLimit : int, lowerLimit : int) -> str:
         Entrez.email = "dezinho_dh@hotmail.com"
         try:
-            handle = Entrez.esearch(db="nucleotide", term=queryString, retmax=1)
+            handle = Entrez.esearch(db="nucleotide", term=firstQueryString, retmax=100)
             record = Entrez.read(handle)
             handle.close()
-        
-            handle = Entrez.efetch(db="nucleotide", id=record["IdList"][0], rettype="fasta")
-            record = handle.read()
+                
+            handle = Entrez.efetch(db="nucleotide", id=record["IdList"], rettype="fasta")
+            firstRecords = handle.read().split('>')
             handle.close()
 
-            record = record[record.find('\n'):].replace("\n", "")
-            return record
+            for result in firstRecords:
+                result = result[result.find('\n'):].replace("\n", "")
+                teste = len(result)
+                if  upperLimit > len(result) > lowerLimit:
+                    return result, None, None
+
+            handle = Entrez.esearch(db="nucleotide", term=secondQueryString, retmax=100)
+            record = Entrez.read(handle)
+            handle.close()
+
+            handle = Entrez.efetch(db="nucleotide", id=record["IdList"], rettype="fasta")
+            secondRecords = handle.read().split('>')
+            handle.close()
+
+            for result in secondRecords:
+                result = result[result.find('\n'):].replace("\n", "")
+                teste = len(result)
+                if  upperLimit > len(result) > lowerLimit:
+                    return result, None, None
+                
+            return "sem resultados", firstRecords, secondRecords
+        
         except Exception as e:
             print("Erro ao buscar pelos rRNAs do organismo selecionado, tente com outro ou inicialize sem searchString para utilizar os RNAs de Escherichia coli.\nMensagem de erro:", e)
-            return None
+        
+    def __SearchWithHigherLimits(self, firstRecords : list, secondRecords : list, upperLimit : str, lowerLimit : str) -> str:
+        for result in firstRecords:
+            result = result[result.find('\n'):].replace('\n', "")
+            teste = len(result)
+            if upperLimit > len(result) > lowerLimit:
+                return result
+            
+        for result in secondRecords:
+            result = result[result.find('\n'):].replace('\n', "")
+            teste = len(result)
+            if upperLimit > len(result) > lowerLimit:
+                return result
+        return "sem resultados"     
+        
         
     def __GettRNAsTemplates(self) -> dict:
         Entrez.email = "dezinho_dh@hotmail.com"
-        queryString = self.searchString if self.searchString.isalnum() else "Escherichia coli"
+        queryString = self.searchString if self.searchString.replace(" ", "").isalnum() else "Escherichia coli"
         dicttRNAs = {}
 
-        for aminoacid in AMINOACIDS:
-            records = self.__EntrezSearchtRNA(aminoacid, queryString)
+        try:
+            baseGenome = self.__EntrezGetBaseGenome(queryString)
 
-            try:
-                for result in records[1:]:
-                    result = result[result.find('\n'):].replace("\n", "")
-                    if  (100 > len(result) > 65 ):                   
-                        dicttRNAs[aminoacid] = result
-                        break
-            except Exception as e:
-                print("Erro ao buscar pelos tRNAs do organismo selecionado, tente com outro ou inicialize sem searchString para utilizar os RNAs de Escherichia coli.\nMensagem de erro:", e)
-                return None
+            for aminoacid in AMINOACIDS:
+                result = self.__ExtracttRNASequence(baseGenome, aminoacid)
+
+                teste = len(result)
+                if (100 > len(result) > 65 ):
+                    dicttRNAs[aminoacid] = result  
+                else:
+                    dicttRNAs[aminoacid] = "sem resultados"                   
+                 
+        except Exception as e:
+            print("Erro ao buscar pelos tRNAs do organismo selecionado, tente com outro ou inicialize sem searchString para utilizar os RNAs de Escherichia coli.\nMensagem de erro:", e)
             
         return dicttRNAs
 
-    def __EntrezSearchtRNA(self, aminoacid, queryString) -> str:
-        try:
-            handle = Entrez.esearch(db="nucleotide", term="tRNA-"+aminoacid+f"[Title] AND {queryString}[Orgn]", retmax=20)
-            records = Entrez.read(handle)
-            handle.close()
+    def __EntrezGetBaseGenome(self, queryString) -> str:
+        handle = Entrez.esearch(db="nucleotide", term=f"(tRNA[Feature key]) AND {queryString}[Title] AND (complete genome[Title] OR complete sequence[Title] NOT plasmid[Title] NOT fragment[Title] NOT partial[Title])", retmax=100)
+        records = Entrez.read(handle)
+        handle.close()
 
-            handle = Entrez.efetch(db="nucleotide", id=records["IdList"], rettype="fasta")
-            records = handle.read().split('>')
-            handle.close()
+        details = self.__FetchDetails(records["IdList"])
+        idsDates = [(result["Id"], result["CreateDate"]) for result in details]
+        idsDates.sort(key= lambda idDate : idDate[1], reverse=True)
 
-            return records
-        except Exception as e:
-            print("Erro ao buscar pelos tRNAs do organismo selecionado, tente com outro ou inicialize sem searchString para buscar em Escherichia coli.\nMensagem de erro:", e)
+        handle = Entrez.efetch(db="nucleotide", id=idsDates[0][0], rettype="gb", retmode="text")
+        record = SeqIO.read(handle, "genbank")
+        handle.close()
+
+        return record
+
+    def __FetchDetails(self, ids):
+        handle = Entrez.esummary(db="nucleotide", id=",".join(ids), retmode="xml")
+        records = Entrez.read(handle)
+        handle.close()
+        return records
+
+    def __ExtracttRNASequence(self, baseGenome, aminoacid):
+        for feature in baseGenome.features:
+            if feature.type == "tRNA" and feature.qualifiers["product"][0] == f"tRNA-{aminoacid}":
+                start = feature.location.start
+                end = feature.location.end
+                return  str(baseGenome.seq[start:end])
+
+        return "sem resultados"
 
     def SearchRNAGenes(self):
-        self.__SearchtRNAGenes()
-        self.__GetrRNAGenes()
+        self.__SearchrRNAGenes()
+        self.__SearchtRNAGenes()    
         return 
     
-    def __GetrRNAGenes(self):
+    def __SearchrRNAGenes(self):
         sixteenGenes = list()
         fiveGenes = list()
         twentyThreeGenes = list()
 
         n=0
 
-        initiate = time.time()
-        while True:
-            gene = self.__GetRNAGene(n, self.sixteenSRNATemplate)
-            if isinstance(gene, str) :
-                break
-            n =  n + self.cutOff 
-            if gene[2] > self.rnaMinScore:
-                sixteenGenes.append(gene)
-        finalize = time.time()
-        print(f"Time 16: {finalize - initiate}\n")
+        if not (self.sixteenSRNATemplate == "sem resultados"):       
+            sixteenGenes = self.__rRNAGenesIterations(n, self.sixteenSRNATemplate, sixteenGenes)
+            if len(sixteenGenes) == 0:
+                sixteenGenes = self.__rRNAGenesIterations(n, self.sixteenSRNATemplate.replace('N','A'), sixteenGenes)
         
-        n=0
-        initiate = time.time()
-        while True:            
-            gene = self.__GetRNAGene(n, self.fiveSRNATemplate)
-            if isinstance(gene, str) :
-                break
-            n = n + self.cutOff
-            if gene[2] > self.rnaMinScore:
-                fiveGenes.append(gene)
-        finalize = time.time()
-        print(f"Time 5: {finalize - initiate}\n")
 
-        n=0
-        initiate = time.time()
-        while True:
-            gene = self.__GetRNAGene(n, self.twentyThreeSRNATemplate)
-            if isinstance(gene, str) :
-                break
-            n = n + self.cutOff
-            if gene[2] > self.rnaMinScore:
-                twentyThreeGenes.append(gene)
-        finalize = time.time()
-        print(f"Time 23: {finalize - initiate}\n")
-        
-        initiate = time.time()
+        if not (self.fiveSRNATemplate == "sem resultados"): 
+            fiveGenes = self.__rRNAGenesIterations(n, self.fiveSRNATemplate, fiveGenes)
+            if len(fiveGenes) == 0:
+                fiveGenes = self.__rRNAGenesIterations(n, self.fiveSRNATemplate.replace('N','A'), fiveGenes)
+
+
+        if not (self.twentyThreeSRNATemplate== "sem resultados"): 
+            twentyThreeGenes = self.__rRNAGenesIterations(n, self.twentyThreeSRNATemplate, twentyThreeGenes)
+            if len(twentyThreeGenes) == 0:
+                twentyThreeGenes = self.__rRNAGenesIterations(n, self.twentyThreeSRNATemplate.replace('N','A'), twentyThreeGenes)
 
         sixteenGenes.sort(key=lambda gene : gene[2], reverse=True)
         fiveGenes.sort(key=lambda gene : gene[2], reverse=True)
@@ -168,14 +224,22 @@ class Genome:
         self.fiveGenes = fiveGenes
         self.twentyThreeGenes = twentyThreeGenes
 
-        finalize = time.time()
-        print(f"Time srt: {finalize - initiate}\n")
-
         return [sixteenGenes, fiveGenes, twentyThreeGenes]
     
-    def __GetRNAGene(self, number : int, targetTemplate : str):
+    def __rRNAGenesIterations(self, number : int, targetTemplate : str, genes : list) -> list:
+        while True:            
+                gene = self.__GetRNAGene(number, targetTemplate)
+                if isinstance(gene, str):
+                    break
+                number = number + self.cutOff
+                if gene[2] > self.rnaMinScore:
+                    genes.append(gene)
+        return genes
+        
+    
+    def __GetRNAGene(self, number : int, targetTemplate : str) -> list:
         sequence = self.sequence
-        start = sequence.find(targetTemplate[:3].replace('N', 'A'), number)
+        start = sequence.find(targetTemplate[:3], number)
         if(start == -1):
             return f"Nenhum possível gene de rRNA a partir do nucleotídeo na posição {number}"
         end = start+len(targetTemplate)
@@ -194,8 +258,10 @@ class Genome:
     def __SearchtRNAGenes(self):
         sequenceLength = len(self.sequence)
 
-        initiate = time.time()
         for aminoacid in AMINOACIDS:
+            if self.tRNAsTemplates[aminoacid] == "sem resultados":
+                self.tRNAsGenes[aminoacid] = "sem resultados"
+                continue
             currentTemplateLength = len(self.tRNAsTemplates[aminoacid])
             self.tRNAsGenes[aminoacid] = list()
             n = 0
@@ -206,10 +272,7 @@ class Genome:
                  n = n + self.cutOff
                  if gene[2] > self.rnaMinScore:
                     self.tRNAsGenes[aminoacid].append(gene)
-            self.tRNAsGenes[aminoacid].sort(key= lambda gene : gene[2], reverse=True)
-                
-        finalize = time.time()
-        print(f"Time tRNAs: {finalize - initiate}\n")
+            self.tRNAsGenes[aminoacid].sort(key= lambda gene : gene[2], reverse=True)               
 
         return
 
@@ -221,7 +284,8 @@ class Genome:
             sequence += line.strip()
         return sequence
     
-    def __FindGenes(self, sequence : str, listGenes : list, n : int):
+    def __FindGenes(self, sequence : str, listGenes : list):
+        n=0
         while True:       
             gene = self.__GetGene(sequence, n)
             if isinstance(gene, str): #Se for string, terminou a busca nessa sequência
@@ -230,7 +294,7 @@ class Genome:
                 geneBoxes = self.__GetBestBoxes(sequence, gene[0]) 
                 product = geneBoxes[0]*geneBoxes[1]
                 if(product >= self.minimumProbability):   
-                    listGenes.append([gene[0], gene[1], geneBoxes[0], geneBoxes[1], product])   
+                    listGenes.append([gene[0], gene[1], geneBoxes[0], geneBoxes[1], product, geneBoxes[2]])   
             n = gene[0]+1
         return listGenes
     
@@ -297,10 +361,9 @@ class Genome:
         reverseSequence = sequence.translate(translationTable)
         forwardStrandGenes = list()
         reverseStrandGenes = list()
-        n = 0
 
-        forwardStrandGenes = self.__FindGenes(sequence, forwardStrandGenes, n)
-        reverseStrandGenes = self.__FindGenes(reverseSequence, reverseStrandGenes, n)
+        forwardStrandGenes = self.__FindGenes(sequence, forwardStrandGenes)
+        reverseStrandGenes = self.__FindGenes(reverseSequence, reverseStrandGenes)
         
         genes = forwardStrandGenes
         genes.extend(reverseStrandGenes)
@@ -327,7 +390,9 @@ class Genome:
         print("Possíveis genes de DNA:")
         print("Início\tFim\tProduto da pontuação")
         for gene in self.DNAGenes:
-            print(f"{gene[0]}\t{gene[1]}\t{gene[2]}")
+            print(f"{gene[0]}\t{gene[1]}\t{gene[4]}")
+            print(f"Sequência do códon de início até o TATA box -35:")
+            print(f"{gene[5]}")
 
         if self.includeRNAGenes:
             print()
@@ -361,4 +426,4 @@ class Genome:
 # genome.AnnotateGenome()
 # genome.PrintResults()
 # end = time.time()
-# print(start-end)
+# print(start-end)l
