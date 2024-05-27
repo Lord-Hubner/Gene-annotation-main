@@ -1,3 +1,4 @@
+import multiprocessing.pool
 from Bio import Entrez 
 from Bio import SeqIO
 import Templates
@@ -45,28 +46,36 @@ class Genome:
                 self.tRNAsTemplates = Templates.tRNAs
             else:
                 start = time.time()
-                # pool = multiprocessing.Pool(4)
-                b1 = time.time()
-                self.sixteenSRNATemplate = self.__GetrRNATemplate("16S")
-                f1 = time.time()
-                print(f"Fim 1: {f1-b1}")
-                b2 = time.time()
-                self.fiveSRNATemplate = self.__GetrRNATemplate("5S")
-                f2 = time.time()
-                print(f"Fim 1: {f2-b2}")
-                b3 = time.time()
-                self.twentyThreeSRNATemplate = self.__GetrRNATemplate("23S")
-                f3 = time.time()
-                print(f"Fim 1: {f3-b3}")
-                self.tRNAsTemplates = self.__GettRNAsTemplates()
+                
+                with multiprocessing.Pool(4) as pool:
+                    # Não roda 100% paralelo para evitar sobrecarga de requisições
+                    results = [
+                        pool.apply_async(self._GetrRNATemplate, ("5S",)),
+                        pool.apply_async(self._GetrRNATemplate, ("16S",)),
+                        pool.apply_async(self._GetrRNATemplate, ("23S",)),
+                        pool.apply_async(self._GettRNAsTemplates)
+                    ]
+
+                    self.fiveSRNATemplate = results[0].get()
+                    self.sixteenSRNATemplate = results[1].get()
+                    self.twentyThreeSRNATemplate = results[2].get()
+                    self.tRNAsTemplates = results[3].get()
+
+
                 end = time.time()
-                print(f"Tempo: {end-start}")
+                print(f"Tempo total: {end-start}")
+                # self.sixteenSRNATemplate = self.__GetrRNATemplate("16S")
+                # self.fiveSRNATemplate = self.__GetrRNATemplate("5S")
+                # self.twentyThreeSRNATemplate = self.__GetrRNATemplate("23S")
+                # self.tRNAsTemplates = self.__GettRNAsTemplates()
 
             self.tRNAsGenes = dict()    
             self.cutOff = rnaGenesCutoff
             self.rnaMinScore = rnaGenesMinScore
 
-    def __GetrRNATemplate(self, RNAtype : str):
+    def _GetrRNATemplate(self, RNAtype : str):
+        Entrez.email = "dezinho_dh@hotmail.com"
+        Entrez.api_key = "d13f56e78009d649f4f0dc96731dfaa8a308"
         orgnName = self.searchString if self.searchString.replace(" ", "").isalnum() else "Escherichia coli"
         upperLimit = 0; lowerLimit = 0
         match RNAtype:
@@ -85,7 +94,6 @@ class Genome:
         return template if template != "sem resultados" else self.__SearchWithHigherLimits(firstRecords, secondRecords, upperLimit+30, lowerLimit-30)
            
     def __EntrezSearchrRNATemplate(self, firstQueryString : str, secondQueryString : str, upperLimit : int, lowerLimit : int) -> str:
-        Entrez.email = "dezinho_dh@hotmail.com"
         try:
             handle = Entrez.esearch(db="nucleotide", term=firstQueryString, retmax=100)
             record = Entrez.read(handle)
@@ -135,8 +143,10 @@ class Genome:
         return "sem resultados"     
         
         
-    def __GettRNAsTemplates(self) -> dict:
+    def _GettRNAsTemplates(self) -> dict:
         Entrez.email = "dezinho_dh@hotmail.com"
+        Entrez.api_key = "d13f56e78009d649f4f0dc96731dfaa8a308"
+
         queryString = self.searchString if self.searchString.replace(" ", "").isalnum() else "Escherichia coli"
         dicttRNAs = {}
 
@@ -188,33 +198,34 @@ class Genome:
         return "sem resultados"
 
     def SearchRNAGenes(self):
+        start = time.time()
         self.__SearchrRNAGenes()
-        self.__SearchtRNAGenes()    
+        self.__SearchtRNAGenes()
+        end = time.time()
+        print(f"Tempo de busca por todos os genes de rRNA: {end-start}")    
         return 
     
     def __SearchrRNAGenes(self):
-        sixteenGenes = list()
-        fiveGenes = list()
-        twentyThreeGenes = list()
+        start = time.time()
 
-        n=0
+        sixteenGenes = self._SinglerRNASearch(self.sixteenSRNATemplate)
+        fiveGenes = self._SinglerRNASearch(self.fiveSRNATemplate)
+        twentyThreeGenes = self._SinglerRNASearch(self.twentyThreeSRNATemplate)
 
-        if not (self.sixteenSRNATemplate == "sem resultados"):       
-            sixteenGenes = self.__rRNAGenesIterations(n, self.sixteenSRNATemplate, sixteenGenes)
-            if len(sixteenGenes) == 0:
-                sixteenGenes = self.__rRNAGenesIterations(n, self.sixteenSRNATemplate.replace('N','A'), sixteenGenes)
-        
+        # with multiprocessing.Pool(3) as pool:
+        #     results = [
+        #     pool.apply_async(self._SinglerRNASearch, args= (self.sixteenSRNATemplate,)),
+        #     pool.apply_async(self._SinglerRNASearch, args= (self.fiveSRNATemplate,)),
+        #     pool.apply_async(self._SinglerRNASearch, args= (self.twentyThreeSRNATemplate,))
+        #     ]
 
-        if not (self.fiveSRNATemplate == "sem resultados"): 
-            fiveGenes = self.__rRNAGenesIterations(n, self.fiveSRNATemplate, fiveGenes)
-            if len(fiveGenes) == 0:
-                fiveGenes = self.__rRNAGenesIterations(n, self.fiveSRNATemplate.replace('N','A'), fiveGenes)
+        #     sixteenGenes = results[0].get()
+        #     fiveGenes = results[1].get()
+        #     twentyThreeGenes = results[2].get()
 
 
-        if not (self.twentyThreeSRNATemplate== "sem resultados"): 
-            twentyThreeGenes = self.__rRNAGenesIterations(n, self.twentyThreeSRNATemplate, twentyThreeGenes)
-            if len(twentyThreeGenes) == 0:
-                twentyThreeGenes = self.__rRNAGenesIterations(n, self.twentyThreeSRNATemplate.replace('N','A'), twentyThreeGenes)
+        end = time.time()
+        print(f"Tempo busca rRNA genes: {end-start}")
 
         sixteenGenes.sort(key=lambda gene : gene[2], reverse=True)
         fiveGenes.sort(key=lambda gene : gene[2], reverse=True)
@@ -226,7 +237,19 @@ class Genome:
 
         return [sixteenGenes, fiveGenes, twentyThreeGenes]
     
-    def __rRNAGenesIterations(self, number : int, targetTemplate : str, genes : list) -> list:
+    def _SinglerRNASearch(self, template : str) -> list:
+
+        if not (template == "sem resultados"):       
+            genes = self.__rRNAGenesIterations(template)
+            if len(genes) == 0:
+                genes = self.__rRNAGenesIterations(template.replace('N','A'))
+        return genes
+
+    
+    def __rRNAGenesIterations(self, targetTemplate : str) -> list:
+        number=0
+        genes = list()
+
         while True:            
                 gene = self.__GetRNAGene(number, targetTemplate)
                 if isinstance(gene, str):
@@ -257,24 +280,39 @@ class Genome:
     
     def __SearchtRNAGenes(self):
         sequenceLength = len(self.sequence)
+        hasTemplatesList = list()
 
+        teste = [(self.tRNAsTemplates[aminoacid], aminoacid) for aminoacid in AMINOACIDS]
+
+        #Mudar para atribuir a resultado intermediário
+        with multiprocessing.Pool(20) as pool:
+            results = pool.starmap(self._SingletRNA, [(self.tRNAsTemplates[aminoacid], aminoacid) for aminoacid in AMINOACIDS], chunksize=20)
+        
+        i=0
         for aminoacid in AMINOACIDS:
-            if self.tRNAsTemplates[aminoacid] == "sem resultados":
-                self.tRNAsGenes[aminoacid] = "sem resultados"
-                continue
-            currentTemplateLength = len(self.tRNAsTemplates[aminoacid])
-            self.tRNAsGenes[aminoacid] = list()
-            n = 0
-            while True:            
-                 gene = self.__GetRNAGene(n, self.tRNAsTemplates[aminoacid])
-                 if isinstance(gene, str) or (n + self.cutOff) > (sequenceLength - currentTemplateLength):
-                    break
-                 n = n + self.cutOff
-                 if gene[2] > self.rnaMinScore:
-                    self.tRNAsGenes[aminoacid].append(gene)
-            self.tRNAsGenes[aminoacid].sort(key= lambda gene : gene[2], reverse=True)               
+            self.tRNAsGenes[aminoacid] = results[i]
+            i += 1                         
 
         return
+    
+    def _SingletRNA(self, template: str, aminoacid : str) -> list:
+        
+        if template == "sem resultados":
+            return "sem resultados"
+        n = 0
+
+        sequenceLength = len(self.sequence)
+        currentTemplateLength = len(template)
+
+        while True:            
+                gene = self.__GetRNAGene(n, self.tRNAsTemplates[aminoacid])
+                if isinstance(gene, str) or (n + self.cutOff) > (sequenceLength - currentTemplateLength):
+                    break
+                n = n + self.cutOff
+                if gene[2] > self.rnaMinScore:
+                    self.tRNAsGenes[aminoacid].append(gene)
+        self.tRNAsGenes[aminoacid].sort(key= lambda gene : gene[2], reverse=True)  
+
 
     def __GetSequence(self, arch):
         arch = open(arch)
