@@ -1,0 +1,53 @@
+\relax 
+\providecommand\babel@aux[2]{}
+\@nameuse{bbl@beforestart}
+\catcode `"\active 
+\babel@aux{portuguese}{}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introdu\c {c}\~ao}{1}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Metodologia}{1}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Busca de genes convencionais}{1}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.1.1}Classe Genome, configuração e inicialização}{1}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces figura demonstrando a criação de uma instância da classe Genome e a realização da anotação do genoma por ela}}{2}{}\protected@file@percent }
+\newlabel{fig}{{1}{2}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.1.2}Métodos essenciais na busca por genes de proteína}{2}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Busca da sequência codificadora de um possível gene, dado um genoma alvo e um número para começar a buscar, pelo método GetGene.}}{3}{}\protected@file@percent }
+\newlabel{fig}{{2}{3}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Atribuição da pontuação de uma sequência como TATA box para o padrão de box espećificado em boxProbs. boxProbs também deve conter as probabilidades associadas com cada nucleotídeo consenso, permitindo o cálculo da pontuação.}}{4}{}\protected@file@percent }
+\newlabel{fig}{{3}{4}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.1.3}Busca iterativa de genes candidatos}{4}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Método GetBestBoxes, que vasculha a região a montante do gene candidato encontrado, retornando as pontuações dos melhores boxes encontrados assim como uma representação em string da região. Código parcialmente cortado devido ao tamanho}}{5}{}\protected@file@percent }
+\newlabel{fig}{{4}{5}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Iteração por todo o genoma pesquisando por genes candidatos e retornando seus dados pelo método FindGenes}}{5}{}\protected@file@percent }
+\newlabel{fig}{{5}{5}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Busca de genes de rRNA e tRNA}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.1}Obtenção dos padrões e buscas no NCBI}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.2.2}Busca por genes de rRNA e tRNA}{7}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Busca por genes de rRNA 16S, 5S e 23S, iterando pelo genoma ao menos uma vez para cada caso. Aqui as chamadas a SinglerRNASearch representam cada uma dessas buscas, performando uma lógica semelhante à usada para genes de proteína}}{8}{}\protected@file@percent }
+\newlabel{fig}{{6}{8}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Busca por todos os genes de tRNA, iterando uma vez pelo genoma para cada tRNA a ser buscado. Semelhamente, aqui SingletRNASearch está encarregado de cada um desses casos.}}{8}{}\protected@file@percent }
+\newlabel{fig}{{7}{8}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Resultados}{9}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Testando filtros de tamanho de CDS e probabilidade e dados gerais }{9}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Figura contendo dados sobre o número de genes para cada busca com diferentes filtros tamanho mínimo de CDS. O segundo gráfico está em escala logarítmica no eixo y, ajudando a ver os valores exatos para cada ponto do eixo x}}{10}{}\protected@file@percent }
+\newlabel{fig}{{8}{10}}
+\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Histogramas representando o número de genes por valor de probabilidade para o BOX10 na primeira coluna e para o BOX35 na segunda, comparando os resultados por linha, que representam dados das buscas sem filtro, produto mínimo 15\% e produto mínimo 25\%, respectivamente. São bastante perceptíveis a diminuição no número de genes e o ajustamento dos scores encontrados à valores maiores conforme se aumenta a rigidez do filtro}}{11}{}\protected@file@percent }
+\newlabel{fig}{{9}{11}}
+\@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces Histogramas das buscas sem filtro, tamanho mínimo 600 e tamanho mínimo 1500, representando cada uma o número de genes obtidos para cada tamanho. Observa-se uma diminuição extrema do número de genes e o funcionamento correto do filtro de tamanho mínimo}}{12}{}\protected@file@percent }
+\newlabel{fig}{{10}{12}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Resultados de rRNA, tRNA e do filtro de score de RNAs}{12}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {11}{\ignorespaces Distribuição de número de genes por score dos resultados de rRNA com ou sem o filtro de valor mínimo de 25\%.}}{13}{}\protected@file@percent }
+\newlabel{fig}{{11}{13}}
+\@writefile{lof}{\contentsline {figure}{\numberline {12}{\ignorespaces Distribuição de número de genes por score dos resultados de tRNA com ou sem o filtro de valor mínimo de 25 \%}}{14}{}\protected@file@percent }
+\newlabel{fig}{{12}{14}}
+\@writefile{lof}{\contentsline {figure}{\numberline {13}{\ignorespaces Histogramas confrontando buscas com sequências armazenadas localmente e buscas com sequências do organismo alvo encontradas no NCBI para rRNAs, aplicando o mesmo padrão da primeira coluna dos casos anteriores para ambas as instâncias. Nota-se um aparente leve aumento da média de scores para os rRNAs 16S e 5S, porém o resultado de 23S é difícil de visualizar. Também se percebe que o gráfico de todos vai até o final devido à presença da sequência exata do padrão encontrado no NCBI }}{15}{}\protected@file@percent }
+\newlabel{fig}{{13}{15}}
+\@writefile{lof}{\contentsline {figure}{\numberline {14}{\ignorespaces Semelhantemente à última figura, mostra de número de genes por score, desta vez para três casos de tRNA. Aqui a melhora nos scores é pouco perceptível e também se encontra a extensão até o score de 1 nos gráficos devido à sequência exata ter sido encontrada.}}{16}{}\protected@file@percent }
+\newlabel{fig}{{14}{16}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Considerações finais}{16}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Comparação da média dos scores dos genes de RNA entre busca convencional e busca com o parâmetro "searchString" aplicado corretamente.}}{16}{}\protected@file@percent }
+\newlabel{tab:1}{{1}{16}}
+\@writefile{lof}{\contentsline {figure}{\numberline {15}{\ignorespaces Mostra novamente a distribuição dos resultados de cada rRNA para a busca com o padrão de \textit  {Mycoplasma genitalium}, porém possibilitando visualizar agora as cópias idênticas encontradas.}}{17}{}\protected@file@percent }
+\newlabel{fig}{{15}{17}}
+\@writefile{lof}{\contentsline {figure}{\numberline {16}{\ignorespaces Mostra novamente a distribuição dos resultados de cada tRNA para a busca com o padrão de \textit  {Mycoplasma genitalium}, porém possibilitando visualizar agora as cópias idênticas encontradas e alguns resultados mais significativos que passariam despercebidos na metodologia anterior.}}{17}{}\protected@file@percent }
+\newlabel{fig}{{16}{17}}
+\gdef \@abspage@last{18}
